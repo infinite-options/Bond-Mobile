@@ -33,7 +33,7 @@ const useMovieViewModel = (qtype) => {
 
     return () => backHandler.remove();
   }, []);
-
+  
   useEffect(() => {
     navigation.setOptions({
       headerLeft: () => null,
@@ -47,8 +47,8 @@ const useMovieViewModel = (qtype) => {
     }, [navigation])
   );
  
-/*
-  
+
+/*  
   useEffect(() => {
     fetchMovies();
   }, []);
@@ -103,6 +103,64 @@ const useMovieViewModel = (qtype) => {
   };
 
   const getQuestion = (data) => {
+    setSubQuestionType("");
+   
+    let randomSubQuestionType ="";
+    let dataKey="";
+    switch (questionType) {
+      case 'movie':
+            const movieQuestionTypes = ['movie_year', 'director', 'title_song', 'bond_actor'];
+            randomSubQuestionType = movieQuestionTypes[Math.floor(Math.random() * movieQuestionTypes.length)];
+            if (randomSubQuestionType === "year")  {
+              dataKey = "move_year";
+            }
+            else
+            {
+              dataKey = "movie_title";
+            }
+          break;
+      case 'bond_girl':
+          const bondGirlQuestionTypes = ['bond_girl1', 'bond_girl_actress1', 'bond_girl2', 'bond_girl_actress2'];    
+          randomSubQuestionType= bondGirlQuestionTypes[Math.floor(Math.random() * bondGirlQuestionTypes.length)];
+          if (["bond_girl2", "bond_girl_actress2"].includes(randomSubQuestionType)) {
+            dataKey = "bond_actor";
+          }
+          else
+          {
+            dataKey = "movie_title";
+          }
+          break;
+      case 'villains':
+          const villainQuestionTypes = ['villain_name', 'villain_actor'];
+          randomSubQuestionType = villainQuestionTypes[Math.floor(Math.random() * villainQuestionTypes.length)];
+          
+          if (randomSubQuestionType === "name") {
+            dataKey = "villain";
+          }
+          else
+          {
+            dataKey = "movie_title";
+          }
+          break;
+      case 'plots':
+          const PlotQuestionsTypes = ['objective', 'outcome', 'fate'];
+          randomSubQuestionType =  PlotQuestionsTypes[Math.floor(Math.random() *  PlotQuestionsTypes.length)];
+          if (randomSubQuestionType === "objective") {
+            dataKey = "objective";
+          }
+          else if (randomSubQuestionType === "outcome") 
+          {
+            dataKey = "outcome";
+          }
+          else {
+            dataKey = "fate";
+          }
+          break;
+      default:
+        return '';
+    }
+
+    setSubQuestionType(randomSubQuestionType);
     if(questionsAsked.length === data.length) {
          //Alert.alert("Completed", "You have answered all questions.");
 
@@ -114,13 +172,13 @@ const useMovieViewModel = (qtype) => {
 
     const correctOption = data[nextQuestion];
     const allOptions = data.slice(); 
-    
+    const correctValue = correctOption[dataKey];
+
     for (let i = allOptions.length - 1; i >= 0; i--) {
-     // console.log(subQuestionType);
-      if (allOptions[i] === correctOption) {
+
+      if (allOptions[i][dataKey] === correctOption[dataKey] ) {
         allOptions.splice(i, 1);
       }
-     // console.log(allOptions.length);
     }
     
     const randomIncorrectOptions = [];
@@ -135,49 +193,24 @@ const useMovieViewModel = (qtype) => {
 
       // Remove selected option to prevent reuse
       for (let i = allOptions.length - 1; i >= 0; i--) {
-        if (allOptions[i] === option) {
+        if (allOptions[i][dataKey]  === option[dataKey]) {
           allOptions.splice(i, 1);
         }
       }
-  }
+    }
 
     // Combine the correct option with the incorrect options and shuffle
     const options = [...randomIncorrectOptions, correctOption];
     options.sort(() => Math.random() - 0.5);
 
-      
-      setQuestionsAsked([...questionsAsked, nextQuestion]);
-      setQuestions(questions + 1);
-      setCurrentIndex(nextQuestion);
-      setOptions(options);
-      setSelectedOption(null);
-      setHasAnsweredIncorrectly(false);
+   
+    setQuestionsAsked([...questionsAsked, nextQuestion]);
+    setQuestions(questions + 1);
+    setCurrentIndex(nextQuestion);
+    setOptions(options);
+    setSelectedOption(null);
+    setHasAnsweredIncorrectly(false);
 
-      switch (questionType) {
-        case 'movie':
-          const movieQuestionTypes = ['movie_year', 'director', 'title_song', 'bond_actor'];
-          const randomMovieQuestionType = movieQuestionTypes[Math.floor(Math.random() * movieQuestionTypes.length)];
-          setSubQuestionType(randomMovieQuestionType);
-          break;
-        case 'bond_girl':
-          const bondGirlQuestionTypes = ['bond_girl1', 'bond_girl_actress1', 'bond_girl2', 'bond_girl_actress2'];
-          const randomBondGirlQuestionType = bondGirlQuestionTypes[Math.floor(Math.random() * bondGirlQuestionTypes.length)];
-          setSubQuestionType(randomBondGirlQuestionType);
-          break;
-        case 'villains':
-          const villainQuestionTypes = ['villain_name', 'villain_actor'];
-          const randomVillainQuestionType = villainQuestionTypes[Math.floor(Math.random() * villainQuestionTypes.length)];
-          setSubQuestionType(randomVillainQuestionType);
-          break;
-
-          case 'plots':
-            const PlotQuestionsTypes = ['objective', 'outcome', 'fate'];
-            const randomPlotQuestionType =  PlotQuestionsTypes[Math.floor(Math.random() *  PlotQuestionsTypes.length)];
-            setSubQuestionType(randomPlotQuestionType);
-            break;
-        default:
-          return '';
-      }
     }
   };
 
@@ -227,29 +260,40 @@ const useMovieViewModel = (qtype) => {
       }  
       
       if (questions >= 10) {
-        navigation.navigate('ResultsPage', { ansCorrect, ansWrong, questions });
-        return;
+        Alert.alert('Correct', "You're Good!",
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.navigate('ResultsPage', { ansCorrect, ansWrong, questions });
+              return;
+            }
+          }
+        ]
+        );
+      
       }
       else
       {
         Alert.alert('Correct', "You're Good!");
       }
-
-      switch (questionType) {
-        case 'movie':
-          getQuestion(moviesList);
-          break;
-        case 'bond_girl':
-          getQuestion(bondGirlsList);
-          break;
-        case 'villains':
-          getQuestion(villainsList);
-          break;
-        case 'plots':
-          getQuestion(plotList);
-          break; 
-        default:
-          throw new Error('Invalid question type');
+      if (questions <= 9) {
+        switch (questionType) {
+          case 'movie':
+            getQuestion(moviesList);
+            break;
+          case 'bond_girl':
+            getQuestion(bondGirlsList);
+            break;
+          case 'villains':
+            getQuestion(villainsList);
+            break;
+          case 'plots':
+            getQuestion(plotList);
+            break; 
+          default:
+            throw new Error('Invalid question type');
+        }
       }
 
     } else {
@@ -283,6 +327,7 @@ const useMovieViewModel = (qtype) => {
 
 const MovieQuestionPage = ({ route, navigation }) => {
   const { qtype } = route.params;
+
   const {
     questions,
     ansCorrect,
@@ -303,6 +348,7 @@ const MovieQuestionPage = ({ route, navigation }) => {
 
   useEffect(() => {
     if (moviesList.length > 0 || bondGirlsList.length > 0 || villainsList.length > 0 || plotList.length > 0) {
+
       switch (questionType) {
         case 'movie':
           getQuestion(moviesList);
@@ -315,6 +361,7 @@ const MovieQuestionPage = ({ route, navigation }) => {
           break;
         case 'plots':
           getQuestion(plotList); 
+          break;
         default:
           throw new Error('Invalid question type');
       }
@@ -376,6 +423,7 @@ const MovieQuestionPage = ({ route, navigation }) => {
         }
 
         case 'plots':
+         
           switch (subQuestionType) {
             case 'objective':
               return `Q. What was ${plotList[currentIndex]?.villain} trying to achieve in the movie ${plotList[currentIndex]?.movie_title}?`;
@@ -393,6 +441,7 @@ const MovieQuestionPage = ({ route, navigation }) => {
   };
 
   const renderAnswers = (questionType, subQuestionType, item ) => {
+
     switch (questionType) {
       case 'movie':
         switch (subQuestionType) {
@@ -460,37 +509,39 @@ const MovieQuestionPage = ({ route, navigation }) => {
       <Text style={styles.title}>MOVIE QUESTIONS</Text>
       <Text style={styles.subtitle}>So you think you know the answers</Text>
     
-      <View style={styles.mainContainer}>
-
+      
         <View style={styles.questionContainer}>
           <Text style={styles.question}>
             {renderQuestion()}
           </Text>
+          <View style={styles.line} />
         </View>
-        <View style={styles.line} />
-        {options.map((item, index) => (
-          <TouchableOpacity key={index} onPress={() => handleRadioButtonPress(item)}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start',padding: 15, }}>
-              <View
-                style={[
-                  styles.radioButton,
-                  { borderColor: selectedOption === (questionType === 'movie' ? item.movie_title : questionType === 'bond_girl' ? item.bond_girl : questionType === 'villains' ? item.villain : item[subQuestionType]) ? 'blue' : 'black' },
-                ]}
-              >
-               {selectedOption === (questionType === 'movie' ? item.movie_title : questionType === 'bond_girl' ? item.bond_girl : questionType === 'villains' ? item.villain : item[subQuestionType]) && <View style={styles.radioButtonInner} />}
-              </View>
-              <Text style={styles.radioButtonText}>{renderAnswers(questionType, subQuestionType, item)}</Text>
-         </View>
+        <View style={styles.ansContainer}>
+          {options.map((item, index) => (
+            <TouchableOpacity key={index} onPress={() => handleRadioButtonPress(item)}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start',padding: 15, }}>
+                <View
+                  style={[
+                    styles.radioButton,
+                    { borderColor: selectedOption === (questionType === 'movie' ? item.movie_title : questionType === 'bond_girl' ? item.bond_girl : questionType === 'villains' ? item.villain : item[subQuestionType]) ? 'blue' : 'black' },
+                  ]}
+                >
+                {selectedOption === (questionType === 'movie' ? item.movie_title : questionType === 'bond_girl' ? item.bond_girl : questionType === 'villains' ? item.villain : item[subQuestionType]) && <View style={styles.radioButtonInner} />}
+                </View>
+                <Text style={styles.radioButtonText}>{renderAnswers(questionType, subQuestionType, item)}</Text>
+          </View>
+            </TouchableOpacity>
+    
+          ))}
+      
+          <TouchableOpacity
+          style={styles.submitButton}
+          onPress={() => handleOptionPress()}
+          disabled={!selectedOption}
+          >
+            <Text style={styles.submitButtonText}>Submit</Text>
           </TouchableOpacity>
-        ))}
-        <TouchableOpacity
-        style={styles.submitButton}
-        onPress={() => handleOptionPress()}
-        disabled={!selectedOption}
-        >
-          <Text style={styles.submitButtonText}>Submit</Text>
-        </TouchableOpacity>
-      </View>
+        </View> 
         <View style={styles.resultsContainer}>
             <Text style={styles.resultsText}>Here is how you did Mr.Bond</Text>
             <View style={styles.textRow}>
@@ -513,10 +564,15 @@ const MovieQuestionPage = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     margin: 0,
-    backgroundColor: 'white',
+    backgroundColor: 'black',
     borderRadius: 5,
     //height: '25%',
   },
+  ansContainer: {
+    margin: 0,
+    backgroundColor: 'white',
+  },
+
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -544,11 +600,6 @@ subtitle: {
     borderBottomWidth: 1,
   },
   questionContainer: {
-    backgroundColor: 'white',
-    padding: 10,
-    marginTop: 10,
-  },
-  mainContainer: {
     backgroundColor: 'white',
     padding: 10,
     marginTop: 10,
@@ -628,3 +679,4 @@ subtitle: {
 });
 
 export default MovieQuestionPage;
+

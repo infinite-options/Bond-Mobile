@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState,useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ImageBackground, StyleSheet, Dimensions } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as Font from 'expo-font';
-import AppLoading from 'expo-app-loading';
+import * as SplashScreen from 'expo-splash-screen';
 
 const { width, height } = Dimensions.get('window');
 
@@ -17,23 +17,34 @@ const MainSelectionPage = () => {
 
     useEffect(() => {
         async function loadFonts() {
-          await Font.loadAsync({
-            'Fresno-Regular': require('./assets/fonts/fresno.ttf'),
-          });
-          setFontsLoaded(true);
+            try {
+                await Font.loadAsync({
+                    'Fresno-Regular': require('./assets/fonts/fresno.ttf'),
+                });
+            } catch (e) {
+                console.warn(e);
+            } finally {
+                setFontsLoaded(true);
+            }
         }
-        loadFonts();
-      }, []);
-  
-     
-    if (!fontsLoaded) {
-    return <AppLoading />;
-    }
 
+        loadFonts();
+    }, []);
+
+    const onLayoutRootView = useCallback(async () => {
+        if (fontsLoaded) {
+            await SplashScreen.hideAsync();
+        }
+    }, [fontsLoaded]);
+
+    if (!fontsLoaded) {
+        return null; // Render nothing while waiting for fonts to load
+    }
+/*
     const handleNavigation = (screen, params = {}) => {
         navigation.navigate(screen, params);
     };
-
+*/
     const handleMovieQuestions = () => {
        // console.log("Movie Button Pressed");
         navigation.navigate('MovieQuestionPage', { qtype: 'movie' });
@@ -59,48 +70,61 @@ const MainSelectionPage = () => {
         navigation.navigate('ResultsPage', { param1: '3', param2: '2', param3: '1' });
     };
 
+    const handleCredits = () => {
+        console.log("Credit Button Pressed");
+        navigation.navigate('CreditsPage', { qtype: 'credits' });
+    };
+
     return (
         <View style={styles.container}>
             <Text style={styles.welcomeText}>WELCOME MR.BOND</Text>
             <Text style={styles.accessText}>You have Full Access</Text>
-            <ScrollView>
-                <View style={styles.optionContainer}>
-                    <TouchableOpacity onPress={handleMovieQuestions}>
-                        <ImageBackground source={require('./assets/bond_image.jpeg')} style={styles.imageButton}>
-                            <Text style={styles.labelText}>Movies</Text>
-                        </ImageBackground>
-                    </TouchableOpacity>
-                </View>
-                <View style={styles.optionContainer}>
-                    <TouchableOpacity onPress={handleBondGirlQuestions}>
-                        <ImageBackground source={require('./assets/bond_image.jpeg')} style={styles.imageButton}>
-                            <Text style={styles.labelText}>Bond Girls</Text>
-                        </ImageBackground>
-                    </TouchableOpacity>
-                </View>
-                <View style={styles.optionContainer}>
-                    <TouchableOpacity onPress={handleVillainQuestions}>
-                        <ImageBackground source={require('./assets/bond_image.jpeg')} style={styles.imageButton}>
-                            <Text style={styles.labelText}>Villains</Text>
-                        </ImageBackground>
-                    </TouchableOpacity>
-                </View>
-                <View style={styles.optionContainer}>
-                    <TouchableOpacity onPress={handlePlotQuestions}>
-                        <ImageBackground source={require('./assets/bond_image.jpeg')} style={styles.imageButton}>
-                            <Text style={styles.labelText}>Plots</Text>
-                        </ImageBackground>
-                    </TouchableOpacity>
-                </View>
-                <View style={styles.optionContainer}>
-                    <TouchableOpacity onPress={handleLineQuestions}>
-                        <ImageBackground source={require('./assets/bond_image.jpeg')} style={styles.imageButton}>
-                            <Text style={styles.labelText}>Lines</Text>
-                        </ImageBackground>
-                    </TouchableOpacity>
-                </View>
-                <Text style={styles.accessText}>Credits</Text>
-            </ScrollView>
+            
+                <ScrollView>
+                    <View style={styles.optionContainer}>
+                        <TouchableOpacity onPress={handleMovieQuestions}>
+                            <ImageBackground source={require('./assets/bond_image.jpeg')} style={styles.imageButton}>
+                                <Text style={styles.labelText}>Movies</Text>
+                            </ImageBackground>
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.optionContainer}>
+                        <TouchableOpacity onPress={handleBondGirlQuestions}>
+                            <ImageBackground source={require('./assets/bond_image.jpeg')} style={styles.imageButton}>
+                                <Text style={styles.labelText}>Bond Girls</Text>
+                            </ImageBackground>
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.optionContainer}>
+                        <TouchableOpacity onPress={handleVillainQuestions}>
+                            <ImageBackground source={require('./assets/bond_image.jpeg')} style={styles.imageButton}>
+                                <Text style={styles.labelText}>Villains</Text>
+                            </ImageBackground>
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.optionContainer}>
+                        <TouchableOpacity onPress={handlePlotQuestions}>
+                            <ImageBackground source={require('./assets/bond_image.jpeg')} style={styles.imageButton}>
+                                <Text style={styles.labelText}>Plots</Text>
+                            </ImageBackground>
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.optionContainer}>
+                        <TouchableOpacity onPress={handleLineQuestions}>
+                            <ImageBackground source={require('./assets/bond_image.jpeg')} style={styles.imageButton}>
+                                <Text style={styles.labelText}>Lines</Text>
+                            </ImageBackground>
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.optionContainer}>
+                        <TouchableOpacity onPress={handleCredits}>
+                            <ImageBackground source={require('./assets/bond_image.jpeg')} style={styles.imageButton}>
+                                <Text style={styles.labelText}>Credits</Text>
+                            </ImageBackground>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+
         </View>
     );
 };
@@ -111,6 +135,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         borderWidth: 2,
     },
+
     welcomeText: {
         textAlign: 'center',
         fontSize: 60,
@@ -156,3 +181,4 @@ const styles = StyleSheet.create({
 });
 
 export default MainSelectionPage;
+

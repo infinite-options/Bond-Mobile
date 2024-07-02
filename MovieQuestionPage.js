@@ -253,11 +253,16 @@ const useMovieViewModel = (qtype) => {
         selectedEntity = '';
         break;
     }
+
     if (selectedOption === selectedEntity) {
-      
+      //console.log(hasAnsweredIncorrectly);
+      let finalScore=ansCorrect;
       if (hasAnsweredIncorrectly === false) {
+        finalScore=ansCorrect+1
         setAnsCorrect(ansCorrect + 1);
       }  
+     // console.log(finalScore);
+     // console.log("answer");
       
       if (questions >= 10) {
         Alert.alert('Correct', "You're Good!",
@@ -265,7 +270,7 @@ const useMovieViewModel = (qtype) => {
           {
             text: 'OK',
             onPress: () => {
-              navigation.navigate('ResultsPage', { ansCorrect, ansWrong, questions });
+              navigation.navigate('ResultsPage', {finalScore, ansWrong, questions });
               return;
             }
           }

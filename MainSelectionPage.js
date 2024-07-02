@@ -64,12 +64,12 @@ const MainSelectionPage = () => {
        // console.log("Plot Button Pressed");
         navigation.navigate('MovieQuestionPage', { qtype: 'plots' });
     };
-
+/*
     const handleLineQuestions = () => {
        // console.log("Lines Button Pressed");
         navigation.navigate('ResultsPage', { param1: '3', param2: '2', param3: '1' });
     };
-
+*/
     const handleCredits = () => {
         console.log("Credit Button Pressed");
         navigation.navigate('CreditsPage', { qtype: 'credits' });
@@ -109,13 +109,14 @@ const MainSelectionPage = () => {
                             </ImageBackground>
                         </TouchableOpacity>
                     </View>
-                    <View style={styles.optionContainer}>
+                    
+                   {/* <View style={styles.optionContainer}>
                         <TouchableOpacity onPress={handleLineQuestions}>
                             <ImageBackground source={require('./assets/bond_image.jpeg')} style={styles.imageButton}>
                                 <Text style={styles.labelText}>Lines</Text>
                             </ImageBackground>
                         </TouchableOpacity>
-                    </View>
+    </View> */}
                     <View style={styles.optionContainer}>
                         <TouchableOpacity onPress={handleCredits}>
                             <ImageBackground source={require('./assets/bond_image.jpeg')} style={styles.imageButton}>

@@ -4,7 +4,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 const ResultsPage = ({ route }) => {
   const navigation = useNavigation();
-  const { ansCorrect, ansWrong, questions } = route.params;
+  const { finalScore, ansWrong, questions } = route.params;
 
   const handleRestart = () => {
     navigation.navigate('MainSelectionPage'); 
@@ -48,7 +48,7 @@ const ResultsPage = ({ route }) => {
         </View>
         <View style={styles.textRow}>
           <Text style={styles.resultsText}>Total Number of Correct Answers:</Text>
-          <Text style={styles.questionsText}>{ansCorrect}</Text>
+          <Text style={styles.questionsText}>{finalScore}</Text>
         </View>
         <View style={styles.textRow}>
           <Text style={styles.resultsText}>Total Number of Incorrect Answers:</Text>

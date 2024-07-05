@@ -1,15 +1,39 @@
-import React from 'react';
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import MainSelectionPage from './MainSelectionPage'; 
 
-import AppNavigator from './AppNavigator'; 
+
+const Stack = createStackNavigator();
+
+const AppNavigator = () => {
+  return (
+    <Stack.Navigator initialRouteName="MainSelectionPage">
+      <Stack.Screen name="MainSelectionPage" component={MainSelectionPage} />
+   {/*   <Stack.Screen name="MovieQuestionPage" component={MovieQuestionPage} />
+      <Stack.Screen name="ResultsPage" component={ResultsPage} />
+  <Stack.Screen name="CreditsPage" component={CreditsPage} /> */}
+    </Stack.Navigator>
+  );
+};
 
 
-const App = () => {
+export default function App() {
+
   return (
     <NavigationContainer>
       <AppNavigator />
     </NavigationContainer>
   );
-};
+}
 
-export default App;
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

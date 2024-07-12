@@ -1,7 +1,25 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ImageBackground, StyleSheet, View, Image, Text,ScrollView } from 'react-native';
+import * as Font from 'expo-font';
 
 function MainSelectionPage(props) {
+
+    const [fontsLoaded, setFontsLoaded] = useState(false);
+    useEffect(() => {
+        async function loadFonts() {
+            try {
+                await Font.loadAsync({
+                    'Fresno-Regular': require('../assets/fonts/fresno.ttf'),
+                });
+            } catch (e) {
+                console.warn(e);
+            } finally {
+                setFontsLoaded(true);
+            }
+        }
+
+        loadFonts();
+    }, []);
     return (
     
         <View style={styles.container}>
@@ -103,6 +121,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 50,
         left: 10,
+        fontFamily: 'Fresno-Regular',
     },
 })
 export default MainSelectionPage;

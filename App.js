@@ -1,7 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, Image, SafeAreaView, Alert, Button, Platform } from 'react-native';
 import {useDimensions, useDeviceOrientation} from '@react-native-community/hooks'
-import WelcomeScreen from './app/screens/WelcomeScreen';
+//import WelcomeScreen from './app/screens/WelcomeScreen';
 import MainSelectionPage from './app/screens/MainSelectionPage';
 export default function App() {
  // const {landscape} = useDeviceOrientation();

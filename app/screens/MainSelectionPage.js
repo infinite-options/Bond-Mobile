@@ -3,7 +3,7 @@ import { ImageBackground, StyleSheet, View, Image, Text,ScrollView, TouchableOpa
 import { useNavigation, useFocusEffect, useState } from '@react-navigation/native';
 
 
-function MainSelectionPage(props) {
+function MainSelectionPage(qtype) {
 
     const navigation = useNavigation();
     
@@ -19,22 +19,22 @@ function MainSelectionPage(props) {
  
      const handleBondGirlQuestions = () => {
          //console.log("Bond Girl Button Pressed");
-         navigation.navigate('MovieQuestionPage', { qtype: 'bond_girl' });
+         navigation.navigate('WelcomeScreen', { qtype: 'bond_girl' });
      };
  
      const handleVillainQuestions = () => {
         // console.log("Villain Button Pressed");
-         navigation.navigate('MovieQuestionPage', { qtype: 'villains' });
+         navigation.navigate('WelcomeScreen', { qtype: 'villains' });
      };
  
      const handlePlotQuestions = () => {
         // console.log("Plot Button Pressed");
-         navigation.navigate('MovieQuestionPage', { qtype: 'plots' });
+         navigation.navigate('WelcomeScreen', { qtype: 'plots' });
      };
 
      const handleCredits = () => {
         // console.log("Credit Button Pressed");
-         navigation.navigate('MovieQuestionPage', { qtype: 'credits' });
+         navigation.navigate('WelcomeScreen', { qtype: 'credits' });
      };
  
     return (

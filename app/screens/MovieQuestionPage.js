@@ -365,6 +365,82 @@ function MovieQuestionPage(props) {
     }
   };
 
+  const handleOptionPress = () => {
+    let selectedEntity = '';
+    switch (questionType) {
+      case 'movie':
+        selectedEntity = moviesList[currentIndex].movie_title;
+        break;
+      case 'bond_girl':
+        selectedEntity = bondGirlsList[currentIndex].bond_girl;
+        break;
+      case 'villains':
+        selectedEntity = villainsList[currentIndex].villain;
+        break;
+      case 'plots':
+        selectedEntity = plotList[currentIndex][subQuestionType];
+        break;
+      default:
+        selectedEntity = '';
+        break;
+    }
+
+    if (selectedOption === selectedEntity) {
+      //console.log(hasAnsweredIncorrectly);
+      let finalScore=ansCorrect;
+      if (hasAnsweredIncorrectly === false) {
+        finalScore=ansCorrect+1
+        setAnsCorrect(ansCorrect + 1);
+      }  
+     // console.log(finalScore);
+     // console.log("answer");
+      
+      if (questions >= 10) {
+        Alert.alert('Correct', "You're Good!",
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.navigate('ResultsPage', {finalScore, ansWrong, questions });
+              return;
+            }
+          }
+        ]
+        );
+      
+      }
+      else
+      {
+        Alert.alert('Correct', "You're Good!");
+      }
+      if (questions <= 9) {
+        switch (questionType) {
+          case 'movie':
+            getQuestion(moviesList);
+            break;
+          case 'bond_girl':
+            getQuestion(bondGirlsList);
+            break;
+          case 'villains':
+            getQuestion(villainsList);
+            break;
+          case 'plots':
+            getQuestion(plotList);
+            break; 
+          default:
+            throw new Error('Invalid question type');
+        }
+      }
+
+    } else {
+      Alert.alert('Whoops', 'Wrong Answer!');
+      if (hasAnsweredIncorrectly === false) {
+        setAnsWrong(ansWrong + 1);
+        setHasAnsweredIncorrectly(true); 
+      }
+    }
+  };
+  
   return (
         <ScrollView style={styles.container}>
         <Text style={styles.title}>MOVIE QUESTIONS</Text>
@@ -397,6 +473,7 @@ function MovieQuestionPage(props) {
         
             <TouchableOpacity
             style={styles.submitButton}
+            onPress={() => handleOptionPress()}
             disabled={!selectedOption}
             >
               <Text style={styles.submitButtonText}>Submit</Text>

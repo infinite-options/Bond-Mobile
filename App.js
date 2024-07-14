@@ -6,6 +6,7 @@ import {useDimensions, useDeviceOrientation} from '@react-native-community/hooks
 import WelcomeScreen from './app/screens/WelcomeScreen';
 import MainSelectionPage from './app/screens/MainSelectionPage';
 import MovieQuestionPage from './app/screens/MovieQuestionPage';
+import ResultsPage from './app/screens/ResultsPage';
 const Stack = createStackNavigator();
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
         <Stack.Screen name="MainSelectionPage" component={MainSelectionPage} />
         <Stack.Screen name="MovieQuestionPage" component={MovieQuestionPage} />
         <Stack.Screen name="WelcomeScreen" component={WelcomeScreen} />
+        <Stack.Screen name="ResultsPage" component={ResultsPage} />
       </Stack.Navigator>
     </NavigationContainer>
     

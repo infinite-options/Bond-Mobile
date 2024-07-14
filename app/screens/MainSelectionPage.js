@@ -1,18 +1,46 @@
-import React from 'react';
+import React, {useEffect, useState, useCallback}from 'react';
 import { ImageBackground, StyleSheet, View, Image, Text,ScrollView, TouchableOpacity } from 'react-native';
-import { useNavigation, useFocusEffect, useState } from '@react-navigation/native';
+import { useNavigation, useFocusEffect} from '@react-navigation/native';
+import * as Font from 'expo-font';
 
 
 function MainSelectionPage(props) {
 
     const navigation = useNavigation();
- 
+    const [fontsLoaded, setFontsLoaded] = useState(false);
     
     useFocusEffect(
         React.useCallback(() => {
             navigation.setOptions({ headerShown: false });
         }, [navigation])
     );
+
+    useEffect(() => {
+        async function loadFonts() {
+            try {
+                await Font.loadAsync({
+                    'Fresno-Regular': require('../assets/fonts/fresno.ttf'),
+                });
+            } catch (e) {
+                console.warn(e);
+            } finally {
+                setFontsLoaded(true);
+            }
+        }
+
+        loadFonts();
+    }, []);
+
+    const onLayoutRootView = useCallback(async () => {
+        if (fontsLoaded) {
+            await SplashScreen.hideAsync();
+        }
+    }, [fontsLoaded]);
+
+    if (!fontsLoaded) {
+        return null; // Render nothing while waiting for fonts to load
+    }
+
     const handleMovieQuestions = () => {
         // console.log("Movie Button Pressed");
          navigation.navigate('MovieQuestionPage', { qtype: 'movie' });
@@ -139,6 +167,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 50,
         left: 10,
+        fontFamily: 'Fresno-Regular',
     },
 })
 export default MainSelectionPage;

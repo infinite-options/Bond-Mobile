@@ -20,17 +20,17 @@ function MainSelectionPage(props) {
  
      const handleBondGirlQuestions = () => {
          //console.log("Bond Girl Button Pressed");
-         navigation.navigate('WelcomeScreen', { qtype: 'bond_girl' });
+         navigation.navigate('MovieQuestionPage', { qtype: 'bond_girl' });
      };
  
      const handleVillainQuestions = () => {
         // console.log("Villain Button Pressed");
-         navigation.navigate('WelcomeScreen', { qtype: 'villains' });
+         navigation.navigate('MovieQuestionPage', { qtype: 'villains' });
      };
  
      const handlePlotQuestions = () => {
         // console.log("Plot Button Pressed");
-         navigation.navigate('WelcomeScreen', { qtype: 'plots' });
+         navigation.navigate('MovieQuestionPage', { qtype: 'plots' });
      };
 
      const handleCredits = () => {

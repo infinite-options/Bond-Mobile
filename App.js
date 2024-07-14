@@ -7,6 +7,7 @@ import WelcomeScreen from './app/screens/WelcomeScreen';
 import MainSelectionPage from './app/screens/MainSelectionPage';
 import MovieQuestionPage from './app/screens/MovieQuestionPage';
 import ResultsPage from './app/screens/ResultsPage';
+import CreditsPage from './app/screens/CreditsPage';
 const Stack = createStackNavigator();
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
         <Stack.Screen name="MovieQuestionPage" component={MovieQuestionPage} />
         <Stack.Screen name="WelcomeScreen" component={WelcomeScreen} />
         <Stack.Screen name="ResultsPage" component={ResultsPage} />
+        <Stack.Screen name="CreditsPage" component={CreditsPage} />
       </Stack.Navigator>
     </NavigationContainer>
     

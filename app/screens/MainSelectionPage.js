@@ -35,7 +35,7 @@ function MainSelectionPage(props) {
 
      const handleCredits = () => {
         // console.log("Credit Button Pressed");
-         navigation.navigate('WelcomeScreen', { qtype: 'credits' });
+         navigation.navigate('CreditsPage', { qtype: 'credits' });
      };
  
     return (

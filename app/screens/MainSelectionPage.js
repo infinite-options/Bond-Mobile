@@ -3,9 +3,10 @@ import { ImageBackground, StyleSheet, View, Image, Text,ScrollView, TouchableOpa
 import { useNavigation, useFocusEffect, useState } from '@react-navigation/native';
 
 
-function MainSelectionPage(qtype) {
+function MainSelectionPage(props) {
 
     const navigation = useNavigation();
+ 
     
     useFocusEffect(
         React.useCallback(() => {

@@ -1,8 +1,13 @@
 import React, { useState, useEffect} from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert,BackHandler } from 'react-native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
+import axios from 'axios';
 
+function MovieQuestionPage(props) {
+    
+    const route = useRoute();
+    const { qtype } = route.params; 
 
-function MovieQuestionPage(qtype) {
     const [questions, setQuestions] = useState(0);
     const [ansCorrect, setAnsCorrect] = useState(0);
     const [ansWrong, setAnsWrong] = useState(0);
@@ -17,7 +22,350 @@ function MovieQuestionPage(qtype) {
     const [questionType] = useState(qtype);
     const [subQuestionType, setSubQuestionType] = useState('');
     const [hasAnsweredIncorrectly, setHasAnsweredIncorrectly] = useState(false);
-    return (
+
+    const navigation = useNavigation();
+    useEffect(() => {
+        fetchMovies();
+    
+        const backAction = () => {
+          return true; 
+        };
+    
+        const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
+    
+        return () => backHandler.remove();
+      }, []);
+      
+      useEffect(() => {
+        navigation.setOptions({
+          headerLeft: () => null,
+          headerTitle: '',
+        });
+      }, [navigation]);
+    
+      useFocusEffect(
+        React.useCallback(() => {
+          navigation.setOptions({ headerShown: false });
+        }, [navigation])
+      );
+     
+    
+    /*  
+      useEffect(() => {
+        fetchMovies();
+      }, []);
+    */  
+   
+  const fetchMovies = async () => {
+    try {
+      let apiEndpoint = '';
+      switch (questionType) {
+        case 'movie':
+          apiEndpoint = 'https://iznfqs92n3.execute-api.us-west-1.amazonaws.com/dev/api/v2/movies';
+          break;
+        case 'bond_girl':
+          apiEndpoint = 'https://iznfqs92n3.execute-api.us-west-1.amazonaws.com/dev/api/v2/girls';
+          break;
+        case 'villains':
+          apiEndpoint = 'https://iznfqs92n3.execute-api.us-west-1.amazonaws.com/dev/api/v2/villains';
+          break;
+        case 'plots':
+          apiEndpoint = 'https://iznfqs92n3.execute-api.us-west-1.amazonaws.com/dev/api/v2/villains';
+          break; 
+        default:
+          throw new Error('Invalid question type'); 
+      }
+
+      const response = await axios.get(apiEndpoint);
+      const data = response.data;
+      
+      switch (questionType) {
+        case 'movie':
+          setMoviesList(data);
+          break;
+        case 'bond_girl':
+          setBondGirlsList(data);
+          break;
+        case 'villains':
+          setVillainsList(data);
+          break;
+        case 'plots':
+          setPlotList(data);
+          break; 
+        default:
+          throw new Error('Invalid question type');
+      }
+
+      getQuestion(data);
+
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      Alert.alert('Error', 'Unable to fetch data. Please try again later.');
+    }
+  };
+ 
+ 
+  const getQuestion = (data) => {
+    setSubQuestionType("");
+   
+    let randomSubQuestionType ="";
+    let dataKey="";
+    switch (questionType) {
+      case 'movie':
+            const movieQuestionTypes = ['movie_year', 'director', 'title_song', 'bond_actor'];
+            randomSubQuestionType = movieQuestionTypes[Math.floor(Math.random() * movieQuestionTypes.length)];
+            if (randomSubQuestionType === "year")  {
+              dataKey = "movie_year";
+            }
+            else
+            {
+              dataKey = "movie_title";
+            }
+          break;
+      case 'bond_girl':
+          const bondGirlQuestionTypes = ['bond_girl1', 'bond_girl_actress1', 'bond_girl2', 'bond_girl_actress2'];    
+          randomSubQuestionType= bondGirlQuestionTypes[Math.floor(Math.random() * bondGirlQuestionTypes.length)];
+          if (["bond_girl2", "bond_girl_actress2"].includes(randomSubQuestionType)) {
+            dataKey = "bond_actor";
+          }
+          else
+          {
+            dataKey = "movie_title";
+          }
+          break;
+      case 'villains':
+          const villainQuestionTypes = ['villain_name', 'villain_actor'];
+          randomSubQuestionType = villainQuestionTypes[Math.floor(Math.random() * villainQuestionTypes.length)];
+          
+          if (randomSubQuestionType === "name") {
+            dataKey = "villain";
+          }
+          else
+          {
+            dataKey = "movie_title";
+          }
+          break;
+      case 'plots':
+          const PlotQuestionsTypes = ['objective', 'outcome', 'fate'];
+          randomSubQuestionType =  PlotQuestionsTypes[Math.floor(Math.random() *  PlotQuestionsTypes.length)];
+          if (randomSubQuestionType === "objective") {
+            dataKey = "objective";
+          }
+          else if (randomSubQuestionType === "outcome") 
+          {
+            dataKey = "outcome";
+          }
+          else {
+            dataKey = "fate";
+          }
+          break;
+      default:
+        return '';
+    }
+
+    setSubQuestionType(randomSubQuestionType);
+    if(questionsAsked.length === data.length) {
+         //Alert.alert("Completed", "You have answered all questions.");
+
+    } else {
+    let nextQuestion;
+    do {
+      nextQuestion = Math.floor(Math.random() * data.length);
+    } while (questionsAsked.includes(nextQuestion));
+
+    const correctOption = data[nextQuestion];
+    const allOptions = data.slice(); 
+    const correctValue = correctOption[dataKey];
+
+    for (let i = allOptions.length - 1; i >= 0; i--) {
+
+      if (allOptions[i][dataKey] === correctOption[dataKey] ) {
+        allOptions.splice(i, 1);
+      }
+    }
+    
+    const randomIncorrectOptions = [];
+    while (randomIncorrectOptions.length < 3) {
+      const randIndex = Math.floor(Math.random() * allOptions.length);
+      const option = allOptions[randIndex];
+
+      // Ensure option is unique
+      if (!randomIncorrectOptions.includes(option)) {
+        randomIncorrectOptions.push(option);
+      }
+
+      // Remove selected option to prevent reuse
+      for (let i = allOptions.length - 1; i >= 0; i--) {
+        if (allOptions[i][dataKey]  === option[dataKey]) {
+          allOptions.splice(i, 1);
+        }
+      }
+    }
+
+    // Combine the correct option with the incorrect options and shuffle
+    const options = [...randomIncorrectOptions, correctOption];
+    options.sort(() => Math.random() - 0.5);
+
+   
+    setQuestionsAsked([...questionsAsked, nextQuestion]);
+    setQuestions(questions + 1);
+    setCurrentIndex(nextQuestion);
+    setOptions(options);
+    setSelectedOption(null);
+    setHasAnsweredIncorrectly(false);
+
+    }
+  };
+
+ const renderQuestion = () => {
+
+    switch (questionType) {
+      case 'movie':
+        switch (subQuestionType) {
+          case 'movie_year':
+            return `Q. In which film did James Bond appear in the year ${moviesList[currentIndex]?.movie_year}?`;
+          case 'director':
+            return `Q. Which Bond film was directed by ${moviesList[currentIndex]?.director}?`;
+          case 'title_song':
+            return `Q. In which James Bond film does the theme song ${moviesList[currentIndex]?.title_song} appear?`;
+          case 'bond_actor':
+            return `Q. In which film did ${moviesList[currentIndex]?.bond_actor} play James Bond?`;
+          case 'year':
+            return `Q. In which year did ${moviesList[currentIndex]?.movie_title} appear?`;
+          default:
+            return '';
+        }
+      
+      case 'bond_girl':
+        switch (subQuestionType) {
+          case 'bond_girl1':
+            return `Q. Which film featured the Bond girl ${bondGirlsList[currentIndex]?.bond_girl}?`;
+          case 'bond_girl_actress1':
+            return `Q. In which film did ${bondGirlsList[currentIndex]?.bond_girl_actress} play the Bond girl?`;
+          case 'bond_girl2':
+            return `Q. Who played Bond in the movie which featured ${bondGirlsList[currentIndex]?.bond_girl}?`;
+          case 'bond_girl_actress2':
+            return `Q. Who played Bond in the movie which featured ${bondGirlsList[currentIndex]?.bond_girl_actress}?`;
+          default:
+            return '';
+        }
+      
+      case 'villains':
+        switch (subQuestionType) {
+          case 'villain_name':
+            return `Q. Which film featured the villain ${villainsList[currentIndex]?.villain}?`;
+          case 'villain_actor':
+            return `Q. In which film did ${villainsList[currentIndex]?.villain_actor} play the villain?`;
+          case 'name':
+            return `Q. Which villain did ${villainsList[currentIndex]?.villain_actor} play?`;
+          case 'bond':
+            return `Q. In which film did Bond face the ${villainsList[currentIndex]?.villain}?`;
+          default:
+            return '';
+        }
+
+        case 'plots':
+         
+          switch (subQuestionType) {
+            case 'objective':
+              return `Q. What was ${plotList[currentIndex]?.villain} trying to achieve in the movie ${plotList[currentIndex]?.movie_title}?`;
+            case 'outcome':
+              return `Q. What happens to ${plotList[currentIndex]?.villain}'s plan in the movie ${plotList[currentIndex]?.movie_title}?`;
+            case 'fate':
+              return `Q. What is the fate of ${plotList[currentIndex]?.villain} in the movie ${plotList[currentIndex]?.movie_title}?`;
+            default:
+              return '';
+          }
+      
+      default:
+        return '';
+    }
+  };
+
+  const renderAnswers = (questionType, subQuestionType, item ) => {
+
+    switch (questionType) {
+      case 'movie':
+        switch (subQuestionType) {
+          case 'movie_year':
+            return item.movie_title; 
+          case 'director':
+            return item.movie_title; 
+          case 'title_song':
+            return item.movie_title; 
+          case 'bond_actor':
+            return item.movie_title; 
+          case 'year':
+            return item.movie_year;
+          default:
+            return '';
+        }
+      
+      case 'bond_girl':
+        switch (subQuestionType) {
+          case 'bond_girl1':
+            return item.movie_title; 
+          case 'bond_girl_actress1':
+            return item.movie_title; 
+          case 'bond_girl2':
+            return item.bond_actor; 
+          case 'bond_girl_actress2':
+            return item.bond_actor; 
+          default:
+            return '';
+        }
+      
+      case 'villains':
+        switch (subQuestionType) {
+          case 'villain_name':
+            return item.movie_title; 
+          case 'villain_actor':
+            return item.movie_title; 
+          case 'name':
+            return item.villain; 
+          case 'bond':
+            return item.movie_title;
+          default:
+            return '';
+        }
+
+        case 'plots':
+          switch (subQuestionType) {
+            case 'objective':
+              return item.objective; 
+            case 'outcome':
+              return item.outcome; 
+            case 'fate':
+                return item.fate; 
+            default:
+              return '';
+        }
+      default:
+        return '';
+    }
+  };
+
+  const handleRadioButtonPress = (item) => {
+    switch (questionType) {
+      case 'movie':
+        setSelectedOption(item.movie_title);
+        break;
+      case 'bond_girl':
+        setSelectedOption(item.bond_girl);
+        break;
+      case 'villains':
+        setSelectedOption(item.villain);
+        break;
+      case 'plots':
+        setSelectedOption(item[subQuestionType]);
+        break; 
+      default:
+        setSelectedOption(null);
+        break;
+    }
+  };
+
+  return (
         <ScrollView style={styles.container}>
         <Text style={styles.title}>MOVIE QUESTIONS</Text>
         <Text style={styles.subtitle}>So you think you know the answers</Text>
@@ -25,7 +373,7 @@ function MovieQuestionPage(qtype) {
         
           <View style={styles.questionContainer}>
             <Text style={styles.question}>
-            {/*  {renderQuestion()} */}
+             {renderQuestion()} 
             </Text>
             <View style={styles.line} />
           </View>
@@ -49,7 +397,6 @@ function MovieQuestionPage(qtype) {
         
             <TouchableOpacity
             style={styles.submitButton}
-            onPress={() => handleOptionPress()}
             disabled={!selectedOption}
             >
               <Text style={styles.submitButtonText}>Submit</Text>

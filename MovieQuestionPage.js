@@ -1,35 +1,145 @@
-import React, { useState, useEffect} from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert,BackHandler } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, BackHandler, useWindowDimensions } from 'react-native';
 import axios from 'axios';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
-const useMovieViewModel = (qtype) => {
-  const [questions, setQuestions] = useState(0);
+const API_BASE = 'https://iznfqs92n3.execute-api.us-west-1.amazonaws.com/dev/api/v2';
+const MAX_QUESTIONS = 10;
+
+// Points awarded for a correct answer, indexed by how many hints were revealed.
+// 0 hints -> full points, 1 hint -> half, 2+ hints -> a quarter. Wrong answers always score 0.
+const POINTS_BY_HINTS = [100, 50, 25];
+const pointsForHints = (hintsShown) => POINTS_BY_HINTS[Math.min(hintsShown, POINTS_BY_HINTS.length - 1)];
+
+// Decade of a film from its year, e.g. "1962" -> "1960s".
+const decade = (item) => `${String(item.movie_year).slice(0, 3)}0s`;
+
+// Seconds -> "M:SS", e.g. 84 -> "1:24".
+const formatTime = (totalSeconds) => `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`;
+
+// Each subtype builds one kind of question:
+// - questionField: the item field the question text is built from
+// - answerField: the item field displayed as the answer options (grading compares this)
+// - hints: progressive context clues [broad, ...specific]; NO level may contain the answer
+const QUIZ_CONFIG = {
+  movie: {
+    title: 'MOVIE QUESTIONS',
+    endpoint: `${API_BASE}/movies`,
+    subtypes: [
+      { questionField: 'movie_year', answerField: 'movie_title', questionText: (item) => `Q. In which film did James Bond appear in the year ${item.movie_year}?`, hints: (item) => [`${item.bond_actor} era · ${decade(item)}`, `The Bond girl was ${item.bond_girl}`] },
+      { questionField: 'director', answerField: 'movie_title', questionText: (item) => `Q. Which Bond film was directed by ${item.director}?`, hints: (item) => [`Starred ${item.bond_actor} · ${decade(item)}`, `The Bond girl was ${item.bond_girl}`] },
+      { questionField: 'title_song', answerField: 'movie_title', questionText: (item) => `Q. In which James Bond film does the theme song ${item.title_song} appear?`, hints: (item) => [`${item.bond_actor} era · ${decade(item)}`, `The Bond girl was ${item.bond_girl}`] },
+      { questionField: 'bond_actor', answerField: 'movie_title', questionText: (item) => `Q. In which film did ${item.bond_actor} play James Bond?`, hints: (item) => [`Directed by ${item.director} · ${decade(item)}`, `The Bond girl was ${item.bond_girl}`] },
+    ],
+  },
+  bond_girl: {
+    title: 'BOND GIRL QUESTIONS',
+    endpoint: `${API_BASE}/girls`,
+    subtypes: [
+      { questionField: 'bond_girl', answerField: 'movie_title', questionText: (item) => `Q. Which film featured the Bond girl ${item.bond_girl}?`, hints: (item) => [`${item.bond_actor} era · ${decade(item)}`, `Played by ${item.bond_girl_actress}`] },
+      { questionField: 'bond_girl_actress', answerField: 'movie_title', questionText: (item) => `Q. In which film did ${item.bond_girl_actress} play the Bond girl?`, hints: (item) => [`${item.bond_actor} era · ${decade(item)}`, `The Bond girl was ${item.bond_girl}`] },
+      { questionField: 'bond_girl', answerField: 'bond_actor', questionText: (item) => `Q. Who played Bond in the movie which featured ${item.bond_girl}?`, hints: (item) => [`A ${decade(item)} film`, `Directed by ${item.director}`] },
+      { questionField: 'bond_girl_actress', answerField: 'bond_actor', questionText: (item) => `Q. Who played Bond in the movie which featured ${item.bond_girl_actress}?`, hints: (item) => [`A ${decade(item)} film`, `Directed by ${item.director}`] },
+    ],
+  },
+  villains: {
+    title: 'VILLAIN QUESTIONS',
+    endpoint: `${API_BASE}/villains`,
+    subtypes: [
+      { questionField: 'villain', answerField: 'movie_title', questionText: (item) => `Q. Which film featured the villain ${item.villain}?`, hints: (item) => [`${item.bond_actor} era · ${decade(item)}`, `Played by ${item.villain_actor}`] },
+      { questionField: 'villain_actor', answerField: 'movie_title', questionText: (item) => `Q. In which film did ${item.villain_actor} play the villain?`, hints: (item) => [`${item.bond_actor} era · ${decade(item)}`, `The villain was ${item.villain}`] },
+    ],
+  },
+  plots: {
+    title: 'PLOT QUESTIONS',
+    endpoint: `${API_BASE}/villains`,
+    subtypes: [
+      { questionField: 'objective', answerField: 'objective', questionText: (item) => `Q. What was ${item.villain} trying to achieve in the movie ${item.movie_title}?`, hints: (item) => [`${item.bond_actor} · ${decade(item)}`, `The villain's fate: ${item.fate}`] },
+      { questionField: 'outcome', answerField: 'outcome', questionText: (item) => `Q. What happens to ${item.villain}'s plan in the movie ${item.movie_title}?`, hints: (item) => [`${item.bond_actor} · ${decade(item)}`, `The villain's fate: ${item.fate}`] },
+      { questionField: 'fate', answerField: 'fate', questionText: (item) => `Q. What is the fate of ${item.villain} in the movie ${item.movie_title}?`, hints: (item) => [`${item.bond_actor} · ${decade(item)}`, `The villain's objective: ${item.objective}`] },
+    ],
+  },
+};
+
+const shuffle = (arr) => {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+// Builds the next question, or null when no eligible item remains.
+// Incorrect options must differ from the correct item in BOTH fields:
+// same answerField would show duplicate option text, and same questionField
+// would be a second factually-valid answer (e.g. another Sean Connery film).
+// askedTexts avoids re-asking an identically worded question (e.g. two films
+// share a year, or one director made several films) with a different answer.
+const buildQuestion = (config, data, askedIndices, askedTexts = []) => {
+  for (const subtype of shuffle(config.subtypes)) {
+    const eligible = shuffle(
+      data
+        .map((item, index) => ({ item, index }))
+        .filter(({ item, index }) =>
+          !askedIndices.includes(index) && item[subtype.questionField] && item[subtype.answerField]
+        )
+    );
+    for (const { item, index } of eligible) {
+      const questionText = subtype.questionText(item);
+      if (askedTexts.includes(questionText)) continue;
+      const correctAnswer = item[subtype.answerField];
+      // Every answer value that is factually valid for this question, across all
+      // items sharing the question-field value (e.g. both films featuring an actor)
+      const validAnswers = new Set(
+        data
+          .filter((other) => other[subtype.questionField] === item[subtype.questionField])
+          .map((other) => other[subtype.answerField])
+      );
+      const incorrectPool = data.filter(
+        (other) => other[subtype.answerField] && !validAnswers.has(other[subtype.answerField])
+      );
+      const incorrect = [...new Set(incorrectPool.map((other) => other[subtype.answerField]))];
+      if (incorrect.length === 0) continue;
+      const options = shuffle([correctAnswer, ...shuffle(incorrect).slice(0, 3)]);
+      // Keep only non-empty clues that never reveal the answer (guards data quirks
+      // like villain "Auric Goldfinger" vs. the film "Goldfinger").
+      const hints = subtype
+        .hints(item)
+        .filter((h) => h && String(h).trim() !== '' && !String(h).includes(correctAnswer));
+      return { index, questionText, options, correctAnswer, hints };
+    }
+  }
+  return null;
+};
+
+const useQuizViewModel = (qtype) => {
+  const config = QUIZ_CONFIG[qtype];
+  const [list, setList] = useState([]);
+  const [question, setQuestion] = useState(null);
+  const [askedIndices, setAskedIndices] = useState([]);
+  const [askedTexts, setAskedTexts] = useState([]);
   const [ansCorrect, setAnsCorrect] = useState(0);
   const [ansWrong, setAnsWrong] = useState(0);
-  const [questionsAsked, setQuestionsAsked] = useState([]);
-  const [moviesList, setMoviesList] = useState([]);
-  const [villainsList, setVillainsList] = useState([]);
-  const [bondGirlsList, setBondGirlsList] = useState([]);
-  const [plotList, setPlotList] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [options, setOptions] = useState([]);
+  const [totalScore, setTotalScore] = useState(0);
+  const [totalHintsUsed, setTotalHintsUsed] = useState(0);
+  const [startTime, setStartTime] = useState(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
-  const [questionType] = useState(qtype);
-  const [subQuestionType, setSubQuestionType] = useState('');
-  const [hasAnsweredIncorrectly, setHasAnsweredIncorrectly] = useState(false);
-  
-  
+  const [answerState, setAnswerState] = useState('unanswered');
+  const [hintsShown, setHintsShown] = useState(0);
+  const [loadError, setLoadError] = useState(false);
+
   const navigation = useNavigation();
-  
+
   useEffect(() => {
-    fetchMovies();
+    fetchQuestions();
 
     const backAction = () => {
       return true; // Prevent default back action
     };
 
-    const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
 
     return () => backHandler.remove();
   }, []);
@@ -46,282 +156,128 @@ const useMovieViewModel = (qtype) => {
       navigation.setOptions({ headerShown: false });
     }, [navigation])
   );
- 
-/*
-  
+
+  // Live quiz timer: starts once the first question loads, ticks every second,
+  // and stops automatically when this screen unmounts (navigating to Results).
   useEffect(() => {
-    fetchMovies();
-  }, []);
-*/  
+    if (!startTime) return;
+    const id = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [startTime]);
 
-  const fetchMovies = async () => {
+  const fetchQuestions = async () => {
     try {
-      let apiEndpoint = '';
-      switch (questionType) {
-        case 'movie':
-          apiEndpoint = 'https://iznfqs92n3.execute-api.us-west-1.amazonaws.com/dev/api/v2/movies';
-          break;
-        case 'bond_girl':
-          apiEndpoint = 'https://iznfqs92n3.execute-api.us-west-1.amazonaws.com/dev/api/v2/girls';
-          break;
-        case 'villains':
-          apiEndpoint = 'https://iznfqs92n3.execute-api.us-west-1.amazonaws.com/dev/api/v2/villains';
-          break;
-        case 'plots':
-          apiEndpoint = 'https://iznfqs92n3.execute-api.us-west-1.amazonaws.com/dev/api/v2/villains';
-          break; 
-        default:
-          throw new Error('Invalid question type'); 
-      }
-
-      const response = await axios.get(apiEndpoint);
+      if (!config) throw new Error('Invalid question type');
+      const response = await axios.get(config.endpoint);
       const data = response.data;
-      
-      switch (questionType) {
-        case 'movie':
-          setMoviesList(data);
-          break;
-        case 'bond_girl':
-          setBondGirlsList(data);
-          break;
-        case 'villains':
-          setVillainsList(data);
-          break;
-        case 'plots':
-          setPlotList(data);
-          break; 
-        default:
-          throw new Error('Invalid question type');
-      }
-
-      getQuestion(data);
-
+      const first = buildQuestion(config, data, []);
+      if (!first) throw new Error('No questions available');
+      setList(data);
+      setQuestion(first);
+      setAskedIndices([first.index]);
+      setAskedTexts([first.questionText]);
+      setStartTime(Date.now());
     } catch (error) {
-      console.error("Error fetching data:", error);
-      Alert.alert('Error', 'Unable to fetch data. Please try again later.');
+      console.error('Error fetching data:', error);
+      setLoadError(true);
     }
   };
 
-  const getQuestion = (data) => {
-    if(questionsAsked.length === data.length) {
-         //Alert.alert("Completed", "You have answered all questions.");
+  const handleRadioButtonPress = (option) => {
+    if (answerState !== 'unanswered') return;
+    setSelectedOption(option);
+  };
 
+  const revealHint = () => {
+    setHintsShown((n) => Math.min(n + 1, question ? question.hints.length : 0));
+    setTotalHintsUsed((n) => n + 1);
+  };
+
+  const handleSubmit = () => {
+    if (!selectedOption || answerState !== 'unanswered') return;
+    if (selectedOption === question.correctAnswer) {
+      setAnswerState('correct');
+      setAnsCorrect(ansCorrect + 1);
+      setTotalScore(totalScore + pointsForHints(hintsShown));
     } else {
-    let nextQuestion;
-    do {
-      nextQuestion = Math.floor(Math.random() * data.length);
-    } while (questionsAsked.includes(nextQuestion));
-
-    const correctOption = data[nextQuestion];
-    const allOptions = data.slice(); 
-    
-    for (let i = allOptions.length - 1; i >= 0; i--) {
-     // console.log(subQuestionType);
-      if (allOptions[i] === correctOption) {
-        allOptions.splice(i, 1);
-      }
-     // console.log(allOptions.length);
-    }
-    
-    const randomIncorrectOptions = [];
-    while (randomIncorrectOptions.length < 3) {
-      const randIndex = Math.floor(Math.random() * allOptions.length);
-      const option = allOptions[randIndex];
-
-      // Ensure option is unique
-      if (!randomIncorrectOptions.includes(option)) {
-        randomIncorrectOptions.push(option);
-      }
-
-      // Remove selected option to prevent reuse
-      for (let i = allOptions.length - 1; i >= 0; i--) {
-        if (allOptions[i] === option) {
-          allOptions.splice(i, 1);
-        }
-      }
-  }
-
-    // Combine the correct option with the incorrect options and shuffle
-    const options = [...randomIncorrectOptions, correctOption];
-    options.sort(() => Math.random() - 0.5);
-
-      
-      setQuestionsAsked([...questionsAsked, nextQuestion]);
-      setQuestions(questions + 1);
-      setCurrentIndex(nextQuestion);
-      setOptions(options);
-      setSelectedOption(null);
-      setHasAnsweredIncorrectly(false);
-
-      switch (questionType) {
-        case 'movie':
-          const movieQuestionTypes = ['movie_year', 'director', 'title_song', 'bond_actor'];
-          const randomMovieQuestionType = movieQuestionTypes[Math.floor(Math.random() * movieQuestionTypes.length)];
-          setSubQuestionType(randomMovieQuestionType);
-          break;
-        case 'bond_girl':
-          const bondGirlQuestionTypes = ['bond_girl1', 'bond_girl_actress1', 'bond_girl2', 'bond_girl_actress2'];
-          const randomBondGirlQuestionType = bondGirlQuestionTypes[Math.floor(Math.random() * bondGirlQuestionTypes.length)];
-          setSubQuestionType(randomBondGirlQuestionType);
-          break;
-        case 'villains':
-          const villainQuestionTypes = ['villain_name', 'villain_actor'];
-          const randomVillainQuestionType = villainQuestionTypes[Math.floor(Math.random() * villainQuestionTypes.length)];
-          setSubQuestionType(randomVillainQuestionType);
-          break;
-
-          case 'plots':
-            const PlotQuestionsTypes = ['objective', 'outcome', 'fate'];
-            const randomPlotQuestionType =  PlotQuestionsTypes[Math.floor(Math.random() *  PlotQuestionsTypes.length)];
-            setSubQuestionType(randomPlotQuestionType);
-            break;
-        default:
-          return '';
-      }
+      setAnswerState('wrong');
+      setAnsWrong(ansWrong + 1);
     }
   };
 
-  const handleRadioButtonPress = (item) => {
-    switch (questionType) {
-      case 'movie':
-        setSelectedOption(item.movie_title);
-        break;
-      case 'bond_girl':
-        setSelectedOption(item.bond_girl);
-        break;
-      case 'villains':
-        setSelectedOption(item.villain);
-        break;
-      case 'plots':
-        setSelectedOption(item[subQuestionType]);
-        break; 
-      default:
-        setSelectedOption(null);
-        break;
+  const handleNext = () => {
+    const answered = askedIndices.length;
+    const next = answered >= MAX_QUESTIONS ? null : buildQuestion(config, list, askedIndices, askedTexts);
+    if (!next) {
+      navigation.navigate('ResultsPage', { ansCorrect, ansWrong, questions: answered, totalScore, elapsedSeconds });
+      return;
     }
+    setQuestion(next);
+    setAskedIndices([...askedIndices, next.index]);
+    setAskedTexts([...askedTexts, next.questionText]);
+    setSelectedOption(null);
+    setAnswerState('unanswered');
+    setHintsShown(0);
   };
-
-  const handleOptionPress = () => {
-    let selectedEntity = '';
-    switch (questionType) {
-      case 'movie':
-        selectedEntity = moviesList[currentIndex].movie_title;
-        break;
-      case 'bond_girl':
-        selectedEntity = bondGirlsList[currentIndex].bond_girl;
-        break;
-      case 'villains':
-        selectedEntity = villainsList[currentIndex].villain;
-        break;
-      case 'plots':
-        selectedEntity = plotList[currentIndex][subQuestionType];
-        break;
-      default:
-        selectedEntity = '';
-        break;
-    }
-    if (selectedOption === selectedEntity) {
-      
-      if (hasAnsweredIncorrectly === false) {
-        setAnsCorrect(ansCorrect + 1);
-      }  
-      
-      if (questions >= 10) {
-        navigation.navigate('ResultsPage', { ansCorrect, ansWrong, questions });
-        return;
-      }
-      else
-      {
-        Alert.alert('Correct', "You're Good!");
-      }
-
-      switch (questionType) {
-        case 'movie':
-          getQuestion(moviesList);
-          break;
-        case 'bond_girl':
-          getQuestion(bondGirlsList);
-          break;
-        case 'villains':
-          getQuestion(villainsList);
-          break;
-        case 'plots':
-          getQuestion(plotList);
-          break; 
-        default:
-          throw new Error('Invalid question type');
-      }
-
-    } else {
-      Alert.alert('Whoops', 'Wrong Answer!');
-      if (hasAnsweredIncorrectly === false) {
-        setAnsWrong(ansWrong + 1);
-        setHasAnsweredIncorrectly(true); 
-      }
-    }
-  };
-
 
   return {
-    questions,
+    title: config ? config.title : '',
+    question,
+    questionNumber: askedIndices.length,
+    isLastQuestion: askedIndices.length >= MAX_QUESTIONS || askedIndices.length >= list.length,
     ansCorrect,
     ansWrong,
-    moviesList,
-    bondGirlsList,
-    villainsList,
-    plotList,
-    currentIndex,
-    handleOptionPress,
-    handleRadioButtonPress,
-    getQuestion,
+    totalScore,
+    totalHintsUsed,
+    elapsedSeconds,
     selectedOption,
-    options,
-    questionType,
-    subQuestionType,
+    answerState,
+    hintsShown,
+    loadError,
+    handleRadioButtonPress,
+    handleSubmit,
+    handleNext,
+    revealHint,
   };
 };
 
-const MovieQuestionPage = ({ route, navigation }) => {
+const MovieQuestionPage = ({ route }) => {
   const { qtype } = route.params;
   const {
-    questions,
+    title,
+    question,
+    questionNumber,
+    isLastQuestion,
     ansCorrect,
     ansWrong,
-    moviesList,
-    bondGirlsList,
-    villainsList,
-    plotList,
-    currentIndex,
-    handleOptionPress,
-    getQuestion,
-    handleRadioButtonPress,
+    totalScore,
+    totalHintsUsed,
+    elapsedSeconds,
     selectedOption,
-    options,
-    questionType,
-    subQuestionType,
-  } = useMovieViewModel(qtype);
+    answerState,
+    hintsShown,
+    loadError,
+    handleRadioButtonPress,
+    handleSubmit,
+    handleNext,
+    revealHint,
+  } = useQuizViewModel(qtype);
 
-  useEffect(() => {
-    if (moviesList.length > 0 || bondGirlsList.length > 0 || villainsList.length > 0 || plotList.length > 0) {
-      switch (questionType) {
-        case 'movie':
-          getQuestion(moviesList);
-          break;
-        case 'bond_girl':
-          getQuestion(bondGirlsList);
-          break;
-        case 'villains':
-          getQuestion(villainsList);
-          break;
-        case 'plots':
-          getQuestion(plotList); 
-        default:
-          throw new Error('Invalid question type');
-      }
-    }
-  }, [moviesList, bondGirlsList, villainsList, plotList]);
+  // Bounding the screen to the window height lets the ScrollView scroll internally
+  // (RN-web's app root only sets min-height), so the footer button stays pinned.
+  const { height: windowHeight } = useWindowDimensions();
 
-  if (moviesList.length === 0 && bondGirlsList.length === 0 && villainsList.length === 0 && plotList.length === 0) {
+  if (loadError) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.errorText}>Unable to fetch data. Please try again later.</Text>
+      </View>
+    );
+  }
+
+  if (!question) {
     return (
       <View style={styles.loadingContainer}>
         <Text>Loading...</Text>
@@ -329,240 +285,203 @@ const MovieQuestionPage = ({ route, navigation }) => {
     );
   }
 
-  const renderQuestion = () => {
-    switch (questionType) {
-      case 'movie':
-        switch (subQuestionType) {
-          case 'movie_year':
-            return `Q. In which film did James Bond appear in the year ${moviesList[currentIndex]?.movie_year}?`;
-          case 'director':
-            return `Q. Which Bond film was directed by ${moviesList[currentIndex]?.director}?`;
-          case 'title_song':
-            return `Q. In which James Bond film does the theme song ${moviesList[currentIndex]?.title_song} appear?`;
-          case 'bond_actor':
-            return `Q. In which film did ${moviesList[currentIndex]?.bond_actor} play James Bond?`;
-          case 'year':
-            return `Q. In which year did ${moviesList[currentIndex]?.movie_title} appear?`;
-          default:
-            return '';
-        }
-      
-      case 'bond_girl':
-        switch (subQuestionType) {
-          case 'bond_girl1':
-            return `Q. Which film featured the Bond girl ${bondGirlsList[currentIndex]?.bond_girl}?`;
-          case 'bond_girl_actress1':
-            return `Q. In which film did ${bondGirlsList[currentIndex]?.bond_girl_actress} play the Bond girl?`;
-          case 'bond_girl2':
-            return `Q. Who played Bond in the movie which featured ${bondGirlsList[currentIndex]?.bond_girl}?`;
-          case 'bond_girl_actress2':
-            return `Q. Who played Bond in the movie which featured ${bondGirlsList[currentIndex]?.bond_girl_actress}?`;
-          default:
-            return '';
-        }
-      
-      case 'villains':
-        switch (subQuestionType) {
-          case 'villain_name':
-            return `Q. Which film featured the villain ${villainsList[currentIndex]?.villain}?`;
-          case 'villain_actor':
-            return `Q. In which film did ${villainsList[currentIndex]?.villain_actor} play the villain?`;
-          case 'name':
-            return `Q. Which villain did ${villainsList[currentIndex]?.villain_actor} play?`;
-          case 'bond':
-            return `Q. In which film did Bond face the ${villainsList[currentIndex]?.villain}?`;
-          default:
-            return '';
-        }
+  const answered = answerState !== 'unanswered';
 
-        case 'plots':
-          switch (subQuestionType) {
-            case 'objective':
-              return `Q. What was ${plotList[currentIndex]?.villain} trying to achieve in the movie ${plotList[currentIndex]?.movie_title}?`;
-            case 'outcome':
-              return `Q. What happens to ${plotList[currentIndex]?.villain}'s plan in the movie ${plotList[currentIndex]?.movie_title}?`;
-            case 'fate':
-              return `Q. What is the fate of ${plotList[currentIndex]?.villain} in the movie ${plotList[currentIndex]?.movie_title}?`;
-            default:
-              return '';
-          }
-      
-      default:
-        return '';
-    }
+  const optionTextStyle = (option) => {
+    if (!answered) return null;
+    if (option === question.correctAnswer) return styles.optionTextCorrect;
+    if (option === selectedOption) return styles.optionTextWrong;
+    return null;
   };
-
-  const renderAnswers = (questionType, subQuestionType, item ) => {
-    switch (questionType) {
-      case 'movie':
-        switch (subQuestionType) {
-          case 'movie_year':
-            return item.movie_title; 
-          case 'director':
-            return item.movie_title; 
-          case 'title_song':
-            return item.movie_title; 
-          case 'bond_actor':
-            return item.movie_title; 
-          case 'year':
-            return item.movie_year;
-          default:
-            return '';
-        }
-      
-      case 'bond_girl':
-        switch (subQuestionType) {
-          case 'bond_girl1':
-            return item.movie_title; 
-          case 'bond_girl_actress1':
-            return item.movie_title; 
-          case 'bond_girl2':
-            return item.bond_actor; 
-          case 'bond_girl_actress2':
-            return item.bond_actor; 
-          default:
-            return '';
-        }
-      
-      case 'villains':
-        switch (subQuestionType) {
-          case 'villain_name':
-            return item.movie_title; 
-          case 'villain_actor':
-            return item.movie_title; 
-          case 'name':
-            return item.villain; 
-          case 'bond':
-            return item.movie_title;
-          default:
-            return '';
-        }
-
-        case 'plots':
-          switch (subQuestionType) {
-            case 'objective':
-              return item.objective; 
-            case 'outcome':
-              return item.outcome; 
-            case 'fate':
-                return item.fate; 
-            default:
-              return '';
-        }
-      default:
-        return '';
-    }
-  };
-
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>MOVIE QUESTIONS</Text>
-      <Text style={styles.subtitle}>So you think you know the answers</Text>
-    
-      <View style={styles.mainContainer}>
+    <View style={[styles.screen, { height: windowHeight }]}>
+      {/* Fixed header: stats row, then the Next Question button below it. Next
+          ONLY advances — it never grades the current answer — but it's locked
+          until Submit has graded this question, so the user can't skip ahead
+          unanswered. Both rows stay outside the ScrollView so they're always
+          reachable without scrolling. */}
+      <Text style={styles.title}>{title}</Text>
+      <View style={styles.statsBar}>
+        <Text style={styles.scoreItem}>Q {questionNumber}/{MAX_QUESTIONS}</Text>
+        <Text style={[styles.scoreItem, styles.scorePoints]}>★{totalScore}</Text>
+        <Text style={[styles.scoreItem, styles.scoreCorrect]}>✓{ansCorrect}</Text>
+        <Text style={[styles.scoreItem, styles.scoreWrong]}>✗{ansWrong}</Text>
+        <Text style={[styles.scoreItem, styles.scoreHints]}>💡{totalHintsUsed}</Text>
+        <Text style={styles.scoreItem}>⏱{formatTime(elapsedSeconds)}</Text>
+      </View>
+      <TouchableOpacity
+        style={[styles.nextButton, !answered && styles.nextButtonDisabled]}
+        onPress={handleNext}
+        disabled={!answered}
+        accessibilityLabel={isLastQuestion ? 'See results' : 'Next question'}
+      >
+        <Text style={styles.nextButtonText}>{isLastQuestion ? 'See Results 🕶️' : 'Next Question →'}</Text>
+      </TouchableOpacity>
 
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      <View style={styles.mainContainer}>
         <View style={styles.questionContainer}>
-          <Text style={styles.question}>
-            {renderQuestion()}
-          </Text>
+          <Text style={styles.question}>{question.questionText}</Text>
+          {question.hints.slice(0, hintsShown).map((clue, i) => (
+            <Text key={i} style={styles.hintText}>💡 {clue}</Text>
+          ))}
+          {hintsShown < question.hints.length && (
+            <TouchableOpacity onPress={revealHint}>
+              <Text style={styles.hintButtonText}>💡 {hintsShown === 0 ? 'Need a hint?' : 'Need another hint?'}</Text>
+            </TouchableOpacity>
+          )}
         </View>
         <View style={styles.line} />
-        {options.map((item, index) => (
-          <TouchableOpacity key={index} onPress={() => handleRadioButtonPress(item)}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start',padding: 15, }}>
-              <View
-                style={[
-                  styles.radioButton,
-                  { borderColor: selectedOption === (questionType === 'movie' ? item.movie_title : questionType === 'bond_girl' ? item.bond_girl : questionType === 'villains' ? item.villain : item[subQuestionType]) ? 'blue' : 'black' },
-                ]}
-              >
-               {selectedOption === (questionType === 'movie' ? item.movie_title : questionType === 'bond_girl' ? item.bond_girl : questionType === 'villains' ? item.villain : item[subQuestionType]) && <View style={styles.radioButtonInner} />}
+        {question.options.map((option) => (
+          <TouchableOpacity key={option} onPress={() => handleRadioButtonPress(option)} disabled={answered}>
+            <View style={styles.optionRow}>
+              <View style={[styles.radioButton, { borderColor: selectedOption === option ? 'blue' : 'black' }]}>
+                {selectedOption === option && <View style={styles.radioButtonInner} />}
               </View>
-              <Text style={styles.radioButtonText}>{renderAnswers(questionType, subQuestionType, item)}</Text>
-         </View>
+              <Text style={[styles.radioButtonText, optionTextStyle(option)]}>{option}</Text>
+            </View>
           </TouchableOpacity>
         ))}
-        <TouchableOpacity
-        style={styles.submitButton}
-        onPress={() => handleOptionPress()}
-        disabled={!selectedOption}
-        >
-          <Text style={styles.submitButtonText}>Submit</Text>
-        </TouchableOpacity>
+        {!answered && selectedOption && (
+          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+            <Text style={styles.submitButtonText}>Submit</Text>
+          </TouchableOpacity>
+        )}
+        {answered && (
+          <View style={[styles.banner, answerState === 'correct' ? styles.bannerCorrect : styles.bannerWrong]}>
+            <Text style={styles.bannerTitle}>
+              {answerState === 'correct' ? "✓ Correct — You're good, Mr. Bond!" : '✗ Wrong answer!'}
+            </Text>
+            {answerState === 'wrong' && (
+              <Text style={styles.bannerText}>Correct answer: {question.correctAnswer}</Text>
+            )}
+          </View>
+        )}
       </View>
-        <View style={styles.resultsContainer}>
-            <Text style={styles.resultsText}>Here is how you did Mr.Bond</Text>
-            <View style={styles.textRow}>
-              <Text style={styles.resultsText}>Number of Questions asked:</Text>
-              <Text style={styles.questionsText}>{questions}</Text>
-            </View>
-            <View style={styles.textRow}>
-              <Text style={styles.resultsText}>Total Number of Correct Answers:</Text>
-              <Text style={styles.questionsText}>{ansCorrect}</Text>
-            </View>
-            <View style={styles.textRow}>
-            <Text style={styles.resultsText}>Total Number of Incorrect Answers:</Text>
-            <Text style={styles.questionsText}>{ansWrong}</Text>
-            </View>    
-        </View>
     </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  screen: {
+    backgroundColor: 'white',
+  },
   container: {
+    flex: 1,
     margin: 0,
     backgroundColor: 'white',
     borderRadius: 5,
-    //height: '25%',
+  },
+  scrollContent: {
+    paddingBottom: 16,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  errorText: {
+    fontSize: 16,
+    color: '#681110',
+    textAlign: 'center',
+    padding: 20,
+  },
   title: {
     backgroundColor: 'black',
-    textAlign: 'center', 
-    fontSize: 60,
-    paddingTop: '20%',
+    textAlign: 'center',
+    fontSize: 40,
+    paddingTop: 40,
+    paddingBottom: 18,
     color: 'white',
     fontWeight: 'bold',
     fontFamily: 'Fresno-Regular',
-   },
-subtitle: {
-  paddingTop: '15%',
-  backgroundColor: 'black',
-  textAlign: 'left',
-  fontSize: 22,
-  color: 'white', 
- 
- },
+  },
+  statsBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+  },
+  scoreItem: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#222',
+  },
+  scorePoints: {
+    color: '#B8860B',
+  },
+  scoreCorrect: {
+    color: '#1B7C1B',
+  },
+  scoreWrong: {
+    color: '#C20400',
+  },
+  scoreHints: {
+    color: '#8A6D00',
+  },
+  nextButton: {
+    backgroundColor: 'black',
+    paddingVertical: 11,
+    marginHorizontal: 16,
+    marginVertical: 9,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextButtonDisabled: {
+    opacity: 0.3,
+  },
+  nextButtonText: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
   line: {
-    borderBottomColor: '#000', 
+    borderBottomColor: '#000',
     borderBottomWidth: 1,
   },
   questionContainer: {
     backgroundColor: 'white',
     padding: 10,
-    marginTop: 10,
+    marginTop: 6,
   },
   mainContainer: {
     backgroundColor: 'white',
     padding: 10,
-    marginTop: 10,
+    marginTop: 6,
   },
   question: {
     fontSize: 16,
     textAlign: 'left',
     fontWeight: 'bold',
-    paddingVertical: 15,
+    paddingVertical: 12,
   },
-  highlight: {
+  optionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    padding: 12,
+  },
+  hintButtonText: {
+    color: '#681110',
+    fontSize: 14,
     fontWeight: 'bold',
+    paddingTop: 4,
   },
-
+  hintText: {
+    color: '#555',
+    fontSize: 14,
+    fontStyle: 'italic',
+    paddingTop: 4,
+  },
   radioButton: {
     width: 20,
     height: 20,
@@ -571,18 +490,25 @@ subtitle: {
     borderColor: 'black',
     justifyContent: 'center',
     alignItems: 'center',
-    
   },
   radioButtonInner: {
     width: 10,
     height: 10,
     borderRadius: 5,
     backgroundColor: 'blue',
-    fontSize: 18,
   },
   radioButtonText: {
     fontSize: 16,
     paddingLeft: 10,
+    flexShrink: 1,
+  },
+  optionTextCorrect: {
+    color: '#1B7C1B',
+    fontWeight: 'bold',
+  },
+  optionTextWrong: {
+    color: '#C20400',
+    fontWeight: 'bold',
   },
   submitButton: {
     backgroundColor: 'black',
@@ -591,40 +517,37 @@ subtitle: {
     borderRadius: 30,
     alignSelf: 'center',
     marginTop: 10,
-    marginBottom: 10,
-    width: '50%',
   },
-
   submitButtonText: {
     color: 'white',
     fontSize: 16,
+    fontWeight: 'bold',
     textAlign: 'center',
   },
-  resultsContainer: {
-    backgroundColor: '#681110',
-    padding: 24,
-    borderTopLeftRadius: 15,
-    borderTopRightRadius: 15,
-    //borderWidth: 1,
-    borderColor: 'black',
-    width: '100%',
-    height: '40%',
+  banner: {
+    borderRadius: 8,
+    padding: 15,
+    marginTop: 10,
+    borderWidth: 2,
   },
-  resultsText: {
-    fontSize: 18,
-    color: 'white', 
-    marginBottom: 20, 
+  bannerCorrect: {
+    backgroundColor: '#1B7C1B',
+    borderColor: '#125712',
   },
-  questionsText: {
-    fontSize: 15,
+  bannerWrong: {
+    backgroundColor: '#C20400',
+    borderColor: '#681110',
+  },
+  bannerTitle: {
     color: 'white',
-    textAlign: 'right', 
+    fontSize: 18,
+    fontWeight: 'bold',
   },
-  textRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  bannerText: {
+    color: 'white',
+    fontSize: 16,
+    marginTop: 5,
   },
-
 });
 
 export default MovieQuestionPage;

@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ImageBackground, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ImageBackground, StyleSheet, useWindowDimensions } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as Font from 'expo-font';
-import AppLoading from 'expo-app-loading';
-
-const { width, height } = Dimensions.get('window');
 
 const MainSelectionPage = () => {
     const navigation = useNavigation();
     const [fontsLoaded, setFontsLoaded] = useState(false);
+    // Bounding the screen to the window height (NOT flex:1 — RN-web's app root
+    // only sets min-height, so flex:1 here would grow to content instead of
+    // being bounded) lets the ScrollView below scroll internally on web.
+    const { height: windowHeight } = useWindowDimensions();
     useFocusEffect(
         React.useCallback(() => {
             navigation.setOptions({ headerShown: false });
@@ -27,12 +28,8 @@ const MainSelectionPage = () => {
   
      
     if (!fontsLoaded) {
-    return <AppLoading />;
+    return null;
     }
-
-    const handleNavigation = (screen, params = {}) => {
-        navigation.navigate(screen, params);
-    };
 
     const handleMovieQuestions = () => {
        // console.log("Movie Button Pressed");
@@ -54,16 +51,11 @@ const MainSelectionPage = () => {
         navigation.navigate('MovieQuestionPage', { qtype: 'plots' });
     };
 
-    const handleLineQuestions = () => {
-       // console.log("Lines Button Pressed");
-        navigation.navigate('ResultsPage', { param1: '3', param2: '2', param3: '1' });
-    };
-
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { height: windowHeight }]}>
             <Text style={styles.welcomeText}>WELCOME MR.BOND</Text>
             <Text style={styles.accessText}>You have Full Access</Text>
-            <ScrollView>
+            <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
                 <View style={styles.optionContainer}>
                     <TouchableOpacity onPress={handleMovieQuestions}>
                         <ImageBackground source={require('./assets/bond_image.jpeg')} style={styles.imageButton}>
@@ -92,13 +84,6 @@ const MainSelectionPage = () => {
                         </ImageBackground>
                     </TouchableOpacity>
                 </View>
-                <View style={styles.optionContainer}>
-                    <TouchableOpacity onPress={handleLineQuestions}>
-                        <ImageBackground source={require('./assets/bond_image.jpeg')} style={styles.imageButton}>
-                            <Text style={styles.labelText}>Lines</Text>
-                        </ImageBackground>
-                    </TouchableOpacity>
-                </View>
                 <Text style={styles.accessText}>Credits</Text>
             </ScrollView>
         </View>
@@ -107,14 +92,19 @@ const MainSelectionPage = () => {
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
         backgroundColor: 'white',
         borderWidth: 2,
     },
+    scrollArea: {
+        flex: 1,
+    },
+    scrollContent: {
+        paddingBottom: 24,
+    },
     welcomeText: {
         textAlign: 'center',
-        fontSize: 60,
-        paddingTop: 100,
+        fontSize: 40,
+        paddingTop: 50,
         backgroundColor: 'black',
         fontFamily: 'Fresno-Regular',
         fontWeight: 'bold',

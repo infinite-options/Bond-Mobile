@@ -6,6 +6,7 @@ import * as Font from 'expo-font';
 const MainSelectionPage = () => {
     const navigation = useNavigation();
     const [fontsLoaded, setFontsLoaded] = useState(false);
+    const [hardMode, setHardMode] = useState(false);
     // Bounding the screen to the window height (NOT flex:1 — RN-web's app root
     // only sets min-height, so flex:1 here would grow to content instead of
     // being bounded) lets the ScrollView below scroll internally on web.
@@ -32,29 +33,43 @@ const MainSelectionPage = () => {
     }
 
     const handleMovieQuestions = () => {
-       // console.log("Movie Button Pressed");
-        navigation.navigate('MovieQuestionPage', { qtype: 'movie' });
+        navigation.navigate('MovieQuestionPage', { qtype: 'movie', hardMode });
     };
 
     const handleBondGirlQuestions = () => {
-        //console.log("Bond Girl Button Pressed");
-        navigation.navigate('MovieQuestionPage', { qtype: 'bond_girl' });
+        navigation.navigate('MovieQuestionPage', { qtype: 'bond_girl', hardMode });
     };
 
     const handleVillainQuestions = () => {
-       // console.log("Villain Button Pressed");
-        navigation.navigate('MovieQuestionPage', { qtype: 'villains' });
+        navigation.navigate('MovieQuestionPage', { qtype: 'villains', hardMode });
     };
 
     const handlePlotQuestions = () => {
-       // console.log("Plot Button Pressed");
-        navigation.navigate('MovieQuestionPage', { qtype: 'plots' });
+        navigation.navigate('MovieQuestionPage', { qtype: 'plots', hardMode });
+    };
+
+    const handleCredits = () => {
+        navigation.navigate('CreditsPage');
     };
 
     return (
         <View style={[styles.container, { height: windowHeight }]}>
             <Text style={styles.welcomeText}>WELCOME MR.BOND</Text>
             <Text style={styles.accessText}>You have Full Access</Text>
+            <View style={styles.difficultyToggle}>
+                <TouchableOpacity
+                    style={[styles.difficultyOption, !hardMode && styles.difficultyOptionActive]}
+                    onPress={() => setHardMode(false)}
+                >
+                    <Text style={[styles.difficultyText, !hardMode && styles.difficultyTextActive]}>Normal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.difficultyOption, hardMode && styles.difficultyOptionActive]}
+                    onPress={() => setHardMode(true)}
+                >
+                    <Text style={[styles.difficultyText, hardMode && styles.difficultyTextActive]}>Hard Mode 🎯</Text>
+                </TouchableOpacity>
+            </View>
             <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
                 <View style={styles.optionContainer}>
                     <TouchableOpacity onPress={handleMovieQuestions}>
@@ -84,7 +99,9 @@ const MainSelectionPage = () => {
                         </ImageBackground>
                     </TouchableOpacity>
                 </View>
-                <Text style={styles.accessText}>Credits</Text>
+                <TouchableOpacity onPress={handleCredits}>
+                    <Text style={styles.accessText}>Credits</Text>
+                </TouchableOpacity>
             </ScrollView>
         </View>
     );
@@ -115,6 +132,31 @@ const styles = StyleSheet.create({
         fontSize: 20,
         padding: 10,
         backgroundColor: 'black',
+        color: 'white',
+    },
+    difficultyToggle: {
+        flexDirection: 'row',
+        backgroundColor: 'black',
+        paddingHorizontal: 25,
+        paddingBottom: 14,
+    },
+    difficultyOption: {
+        flex: 1,
+        paddingVertical: 10,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#555',
+    },
+    difficultyOptionActive: {
+        backgroundColor: '#C20400',
+        borderColor: '#C20400',
+    },
+    difficultyText: {
+        color: '#999',
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    difficultyTextActive: {
         color: 'white',
     },
     optionContainer: {

@@ -76,7 +76,10 @@ const shuffle = (arr) => {
 // would be a second factually-valid answer (e.g. another Sean Connery film).
 // askedTexts avoids re-asking an identically worded question (e.g. two films
 // share a year, or one director made several films) with a different answer.
-const buildQuestion = (config, data, askedIndices, askedTexts = []) => {
+// hardMode additionally skips "obvious" questions whose answer text is
+// already contained in the question itself (e.g. many Bond theme songs
+// share the film's title, like "Goldfinger").
+const buildQuestion = (config, data, askedIndices, askedTexts = [], hardMode = false) => {
   for (const subtype of shuffle(config.subtypes)) {
     const eligible = shuffle(
       data
@@ -89,6 +92,7 @@ const buildQuestion = (config, data, askedIndices, askedTexts = []) => {
       const questionText = subtype.questionText(item);
       if (askedTexts.includes(questionText)) continue;
       const correctAnswer = item[subtype.answerField];
+      if (hardMode && questionText.toLowerCase().includes(String(correctAnswer).toLowerCase())) continue;
       // Every answer value that is factually valid for this question, across all
       // items sharing the question-field value (e.g. both films featuring an actor)
       const validAnswers = new Set(
@@ -113,7 +117,7 @@ const buildQuestion = (config, data, askedIndices, askedTexts = []) => {
   return null;
 };
 
-const useQuizViewModel = (qtype) => {
+const useQuizViewModel = (qtype, hardMode) => {
   const config = QUIZ_CONFIG[qtype];
   const [list, setList] = useState([]);
   const [question, setQuestion] = useState(null);
@@ -172,7 +176,7 @@ const useQuizViewModel = (qtype) => {
       if (!config) throw new Error('Invalid question type');
       const response = await axios.get(config.endpoint);
       const data = response.data;
-      const first = buildQuestion(config, data, []);
+      const first = buildQuestion(config, data, [], [], hardMode);
       if (!first) throw new Error('No questions available');
       setList(data);
       setQuestion(first);
@@ -195,6 +199,12 @@ const useQuizViewModel = (qtype) => {
     setTotalHintsUsed((n) => n + 1);
   };
 
+  // Post-answer version of revealHint: the question is already graded, so this
+  // is pure trivia context now — it must NOT count toward totalHintsUsed.
+  const learnMore = () => {
+    setHintsShown((n) => Math.min(n + 1, question ? question.hints.length : 0));
+  };
+
   const handleSubmit = () => {
     if (!selectedOption || answerState !== 'unanswered') return;
     if (selectedOption === question.correctAnswer) {
@@ -209,7 +219,7 @@ const useQuizViewModel = (qtype) => {
 
   const handleNext = () => {
     const answered = askedIndices.length;
-    const next = answered >= MAX_QUESTIONS ? null : buildQuestion(config, list, askedIndices, askedTexts);
+    const next = answered >= MAX_QUESTIONS ? null : buildQuestion(config, list, askedIndices, askedTexts, hardMode);
     if (!next) {
       navigation.navigate('ResultsPage', { ansCorrect, ansWrong, questions: answered, totalScore, elapsedSeconds });
       return;
@@ -240,11 +250,12 @@ const useQuizViewModel = (qtype) => {
     handleSubmit,
     handleNext,
     revealHint,
+    learnMore,
   };
 };
 
 const MovieQuestionPage = ({ route }) => {
-  const { qtype } = route.params;
+  const { qtype, hardMode = false } = route.params;
   const {
     title,
     question,
@@ -263,7 +274,8 @@ const MovieQuestionPage = ({ route }) => {
     handleSubmit,
     handleNext,
     revealHint,
-  } = useQuizViewModel(qtype);
+    learnMore,
+  } = useQuizViewModel(qtype, hardMode);
 
   // Bounding the screen to the window height lets the ScrollView scroll internally
   // (RN-web's app root only sets min-height), so the footer button stays pinned.
@@ -302,6 +314,7 @@ const MovieQuestionPage = ({ route }) => {
           unanswered. Both rows stay outside the ScrollView so they're always
           reachable without scrolling. */}
       <Text style={styles.title}>{title}</Text>
+      {hardMode && <Text style={styles.hardModeBadge}>HARD MODE 🎯</Text>}
       <View style={styles.statsBar}>
         <Text style={styles.scoreItem}>Q {questionNumber}/{MAX_QUESTIONS}</Text>
         <Text style={[styles.scoreItem, styles.scorePoints]}>★{totalScore}</Text>
@@ -327,9 +340,15 @@ const MovieQuestionPage = ({ route }) => {
             <Text key={i} style={styles.hintText}>💡 {clue}</Text>
           ))}
           {hintsShown < question.hints.length && (
-            <TouchableOpacity onPress={revealHint}>
-              <Text style={styles.hintButtonText}>💡 {hintsShown === 0 ? 'Need a hint?' : 'Need another hint?'}</Text>
-            </TouchableOpacity>
+            answered ? (
+              <TouchableOpacity onPress={learnMore}>
+                <Text style={styles.hintButtonText}>📖 Learn More</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={revealHint}>
+                <Text style={styles.hintButtonText}>💡 {hintsShown === 0 ? 'Need a hint?' : 'Need another hint?'}</Text>
+              </TouchableOpacity>
+            )
           )}
         </View>
         <View style={styles.line} />
@@ -397,6 +416,15 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
     fontFamily: 'Fresno-Regular',
+  },
+  hardModeBadge: {
+    backgroundColor: 'black',
+    textAlign: 'center',
+    color: '#FFD700',
+    fontSize: 12,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+    paddingBottom: 8,
   },
   statsBar: {
     flexDirection: 'row',

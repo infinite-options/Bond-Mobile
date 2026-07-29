@@ -104,7 +104,7 @@ const Confetti = ({ count = CONFETTI_COUNT }) => {
 
 const ResultsPage = ({ route }) => {
   const navigation = useNavigation();
-  const { ansCorrect = 0, ansWrong = 0, questions = 0, totalScore = 0, elapsedSeconds = 0 } = route.params || {};
+  const { ansCorrect = 0, ansWrong = 0, questions = 0, totalScore = 0, elapsedSeconds = 0, pointsLostToHints = 0 } = route.params || {};
   const maxScore = questions * 100;
   const accuracy = questions > 0 ? Math.round((ansCorrect / questions) * 100) : 0;
 
@@ -162,6 +162,9 @@ const ResultsPage = ({ route }) => {
 
         <Text style={styles.scoreValue}>{totalScore}</Text>
         <Text style={styles.scoreLabel}>points · {maxScore} possible</Text>
+        {pointsLostToHints > 0 && (
+          <Text style={styles.hintPenaltyText}>💡 −{pointsLostToHints} pts lost to hints</Text>
+        )}
 
         <View style={styles.statsRow}>
           <View style={styles.statBlock}>
@@ -236,6 +239,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 4,
     marginBottom: 24,
+  },
+  hintPenaltyText: {
+    color: '#B8860B',
+    fontSize: 13,
+    fontWeight: 'bold',
+    marginTop: -16,
+    marginBottom: 12,
   },
   statsRow: {
     flexDirection: 'row',

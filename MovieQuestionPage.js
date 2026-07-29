@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, BackHandler, useWindowDimensions } from 'react-native';
+import { View, Text, Image, ScrollView, StyleSheet, TouchableOpacity, BackHandler, useWindowDimensions } from 'react-native';
 import axios from 'axios';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
@@ -126,6 +126,7 @@ const useQuizViewModel = (qtype, hardMode) => {
   const [ansCorrect, setAnsCorrect] = useState(0);
   const [ansWrong, setAnsWrong] = useState(0);
   const [totalScore, setTotalScore] = useState(0);
+  const [pointsLostToHints, setPointsLostToHints] = useState(0);
   const [totalHintsUsed, setTotalHintsUsed] = useState(0);
   const [startTime, setStartTime] = useState(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -210,7 +211,9 @@ const useQuizViewModel = (qtype, hardMode) => {
     if (selectedOption === question.correctAnswer) {
       setAnswerState('correct');
       setAnsCorrect(ansCorrect + 1);
-      setTotalScore(totalScore + pointsForHints(hintsShown));
+      const earned = pointsForHints(hintsShown);
+      setTotalScore(totalScore + earned);
+      setPointsLostToHints(pointsLostToHints + (100 - earned));
     } else {
       setAnswerState('wrong');
       setAnsWrong(ansWrong + 1);
@@ -221,7 +224,7 @@ const useQuizViewModel = (qtype, hardMode) => {
     const answered = askedIndices.length;
     const next = answered >= MAX_QUESTIONS ? null : buildQuestion(config, list, askedIndices, askedTexts, hardMode);
     if (!next) {
-      navigation.navigate('ResultsPage', { ansCorrect, ansWrong, questions: answered, totalScore, elapsedSeconds });
+      navigation.navigate('ResultsPage', { ansCorrect, ansWrong, questions: answered, totalScore, elapsedSeconds, pointsLostToHints });
       return;
     }
     setQuestion(next);
@@ -314,7 +317,12 @@ const MovieQuestionPage = ({ route }) => {
           unanswered. Both rows stay outside the ScrollView so they're always
           reachable without scrolling. */}
       <Text style={styles.title}>{title}</Text>
-      {hardMode && <Text style={styles.hardModeBadge}>HARD MODE 🎯</Text>}
+      {hardMode && (
+        <View style={styles.hardModeBadge}>
+          <Image source={require('./assets/icon-spy.png')} style={[styles.hardModeBadgeIcon, { tintColor: '#FFD700' }]} />
+          <Text style={styles.hardModeBadgeText}>SUPER SECRET SPY MODE</Text>
+        </View>
+      )}
       <View style={styles.statsBar}>
         <Text style={styles.scoreItem}>Q {questionNumber}/{MAX_QUESTIONS}</Text>
         <Text style={[styles.scoreItem, styles.scorePoints]}>★{totalScore}</Text>
@@ -329,7 +337,7 @@ const MovieQuestionPage = ({ route }) => {
         disabled={!answered}
         accessibilityLabel={isLastQuestion ? 'See results' : 'Next question'}
       >
-        <Text style={styles.nextButtonText}>{isLastQuestion ? 'See Results 🕶️' : 'Next Question →'}</Text>
+        <Text style={styles.nextButtonText}>{isLastQuestion ? 'See Results →' : 'Next Question →'}</Text>
       </TouchableOpacity>
 
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
@@ -418,13 +426,22 @@ const styles = StyleSheet.create({
     fontFamily: 'Fresno-Regular',
   },
   hardModeBadge: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: 'black',
-    textAlign: 'center',
+    paddingBottom: 8,
+  },
+  hardModeBadgeIcon: {
+    width: 14,
+    height: 14,
+    marginRight: 6,
+  },
+  hardModeBadgeText: {
     color: '#FFD700',
     fontSize: 12,
     fontWeight: 'bold',
     letterSpacing: 1,
-    paddingBottom: 8,
   },
   statsBar: {
     flexDirection: 'row',

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ImageBackground, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, ImageBackground, StyleSheet, useWindowDimensions } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as Font from 'expo-font';
 
@@ -56,18 +56,20 @@ const MainSelectionPage = () => {
         <View style={[styles.container, { height: windowHeight }]}>
             <Text style={styles.welcomeText}>WELCOME MR.BOND</Text>
             <Text style={styles.accessText}>You have Full Access</Text>
-            <View style={styles.difficultyToggle}>
+            <View style={styles.spyToggleWrap}>
                 <TouchableOpacity
-                    style={[styles.difficultyOption, !hardMode && styles.difficultyOptionActive]}
-                    onPress={() => setHardMode(false)}
+                    style={[styles.spyToggle, hardMode && styles.spyToggleActive]}
+                    onPress={() => setHardMode((v) => !v)}
                 >
-                    <Text style={[styles.difficultyText, !hardMode && styles.difficultyTextActive]}>Normal</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.difficultyOption, hardMode && styles.difficultyOptionActive]}
-                    onPress={() => setHardMode(true)}
-                >
-                    <Text style={[styles.difficultyText, hardMode && styles.difficultyTextActive]}>Hard Mode 🎯</Text>
+                    <View style={styles.spyToggleContent}>
+                        <Image
+                            source={require('./assets/icon-spy.png')}
+                            style={[styles.spyToggleIcon, { tintColor: hardMode ? '#FFD700' : '#999' }]}
+                        />
+                        <Text style={[styles.spyToggleText, hardMode && styles.spyToggleTextActive]}>
+                            {hardMode ? '✓ ' : ''}SUPER SECRET SPY
+                        </Text>
+                    </View>
                 </TouchableOpacity>
             </View>
             <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
@@ -99,8 +101,9 @@ const MainSelectionPage = () => {
                         </ImageBackground>
                     </TouchableOpacity>
                 </View>
-                <TouchableOpacity onPress={handleCredits}>
-                    <Text style={styles.accessText}>Credits</Text>
+                <TouchableOpacity onPress={handleCredits} style={styles.dossierButton}>
+                    <Image source={require('./assets/icon-dossier.png')} style={[styles.dossierIcon, { tintColor: 'white' }]} />
+                    <Text style={styles.dossierButtonText}>Secret Dossier</Text>
                 </TouchableOpacity>
             </ScrollView>
         </View>
@@ -134,30 +137,59 @@ const styles = StyleSheet.create({
         backgroundColor: 'black',
         color: 'white',
     },
-    difficultyToggle: {
+    dossierButton: {
         flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 10,
+        backgroundColor: 'black',
+    },
+    dossierIcon: {
+        width: 20,
+        height: 20,
+        marginRight: 8,
+    },
+    dossierButtonText: {
+        fontSize: 20,
+        color: 'white',
+    },
+    spyToggleWrap: {
         backgroundColor: 'black',
         paddingHorizontal: 25,
-        paddingBottom: 14,
-    },
-    difficultyOption: {
-        flex: 1,
-        paddingVertical: 10,
+        paddingBottom: 16,
         alignItems: 'center',
+    },
+    spyToggle: {
+        width: '100%',
+        paddingVertical: 12,
+        borderRadius: 26,
+        alignItems: 'center',
+        backgroundColor: '#111',
         borderWidth: 1,
-        borderColor: '#555',
+        borderColor: '#444',
     },
-    difficultyOptionActive: {
-        backgroundColor: '#C20400',
-        borderColor: '#C20400',
+    spyToggleActive: {
+        backgroundColor: '#7A0300',
+        borderWidth: 1.5,
+        borderColor: '#FFD700',
     },
-    difficultyText: {
+    spyToggleContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    spyToggleIcon: {
+        width: 18,
+        height: 18,
+        marginRight: 8,
+    },
+    spyToggleText: {
         color: '#999',
         fontSize: 14,
         fontWeight: 'bold',
+        letterSpacing: 1.5,
     },
-    difficultyTextActive: {
-        color: 'white',
+    spyToggleTextActive: {
+        color: '#FFD700',
     },
     optionContainer: {
         marginLeft: 25,
